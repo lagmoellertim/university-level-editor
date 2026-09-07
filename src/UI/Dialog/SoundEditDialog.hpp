@@ -14,8 +14,9 @@
 
 #include "../../Lib/LevelManager/LevelManager.hpp"
 #include "../View/SoundEditUI.hpp"
-#include <QBuffer>
+#include <QAudioOutput>
 #include <QMediaPlayer>
+#include <QTemporaryFile>
 
 
 /**
@@ -96,8 +97,11 @@ private:
     /// Media Player for Sound preview
     QMediaPlayer* m_mediaPlayer;
 
-    /// Audio Buffer
-    QBuffer* m_audioBuffer;
+    /// Audio Output
+    QAudioOutput* m_audioOutput = nullptr;
+
+    /// Temporary audio file for sound playback
+    QTemporaryFile* m_tempAudioFile = nullptr;
 
     /**
      * @brief Get the Sound Object by it's ID

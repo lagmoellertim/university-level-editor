@@ -13,6 +13,7 @@
 #define LEVEL_EDITOR_BACKGROUND_HPP
 
 
+#include <QObject>
 #include <QPixmap>
 
 /**

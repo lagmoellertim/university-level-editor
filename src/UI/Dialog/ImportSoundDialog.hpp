@@ -37,6 +37,13 @@ public:
      */
     std::string getID() const;
 
+    /**
+     * @brief Pre-fill a suggested sound ID (e.g. from the selected filename)
+     *
+     * @param id Suggested sound ID
+     */
+    void setSuggestedID(const QString& id);
+
 public slots:
     /**
      * @brief Called when the Sound ID inside of LineEdit has changed. Used to check if id is unique.

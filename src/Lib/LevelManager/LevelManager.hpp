@@ -15,6 +15,7 @@
 #include "EditingContext.hpp"
 #include "Level.hpp"
 #include "Sound.hpp"
+#include <QObject>
 #include <map>
 #include <vector>
 
