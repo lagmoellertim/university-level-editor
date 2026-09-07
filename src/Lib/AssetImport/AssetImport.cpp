@@ -4,6 +4,7 @@
 #include "../../UI/Dialog/SpriteImportDialog.hpp"
 #include "../../UI/Dialog/TileSetImportDialog.hpp"
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QMessageBox>
 
 std::vector<QPixmap>* AssetImport::importTileSet(QWidget* parent)
@@ -88,15 +89,18 @@ Sound* AssetImport::importSound(std::vector<std::string> soundList, QWidget* par
 {
     QString filename = Utils::getFilename("Open Sound File", parent, "WAV (*.wav);;");
 
-    if (filename == "")
+    if (filename == "" || !filename.endsWith(".wav", Qt::CaseInsensitive))
     {
         return nullptr;
     }
 
     ImportSoundDialog dialog(soundList, parent);
 
-    dialog.show();
-    dialog.setModal(true);
+    QString baseName = QFileInfo(filename).completeBaseName();
+    if (!baseName.isEmpty())
+    {
+        dialog.setSuggestedID(baseName);
+    }
 
     if (dialog.exec() == 0)
     {

@@ -4,8 +4,12 @@
 #include "../../Lib/Dialog/NewLevel.hpp"
 #include "../../Lib/Dialog/SpriteEdit.hpp"
 #include "../Dialog/SpriteEditDialog.hpp"
+#include "../Dialog/SpriteImportDialog.hpp"
+#include "../Dialog/TileSetImportDialog.hpp"
+#include <QFileDialog>
 #include <QMenu>
 #include <QMessageBox>
+
 
 ToolBar::ToolBar(LevelManager& levelManager, QWidget* parent)
     : QWidget(parent), m_levelManager(levelManager)
@@ -133,6 +137,29 @@ void ToolBar::onAddItemSet()
         {
             case TILE_LAYER:
             {
+#ifdef __EMSCRIPTEN__
+                QFileDialog::getOpenFileContent(tr("Image files (*.png *.jpg *.bmp);;All files (*)"),
+                    [level, this](const QString &fileName, const QByteArray &fileContent) {
+                        if (fileName.isEmpty() || fileContent.isEmpty()) {
+                            return;
+                        }
+                        QPixmap pixmap;
+                        if (!pixmap.loadFromData(fileContent)) {
+                            QMessageBox::critical(this, "File Error", "An error occurred while opening/reading the image.");
+                            return;
+                        }
+                        auto* dialog = new TileSetImportDialog(pixmap, this);
+                        dialog->setAttribute(Qt::WA_DeleteOnClose);
+                        connect(dialog, &QDialog::accepted, [dialog, level]() {
+                            std::vector<QPixmap>* newTileSet = dialog->generatePixmapVector();
+                            if (newTileSet) {
+                                level->appendToTileSet(*newTileSet);
+                                delete newTileSet;
+                            }
+                        });
+                        dialog->open();
+                    });
+#else
                 // Import new TileSet
                 std::vector<QPixmap>* newTileSet = AssetImport::importTileSet();
 
@@ -142,11 +169,37 @@ void ToolBar::onAddItemSet()
                 }
 
                 delete newTileSet;
+#endif
                 break;
             }
 
             case SPRITE_LAYER:
             {
+#ifdef __EMSCRIPTEN__
+                QFileDialog::getOpenFileContent(tr("Image files (*.png *.jpg *.bmp);;All files (*)"),
+                    [level, this](const QString &fileName, const QByteArray &fileContent) {
+                        if (fileName.isEmpty() || fileContent.isEmpty()) {
+                            return;
+                        }
+                        QPixmap pixmap;
+                        if (!pixmap.loadFromData(fileContent)) {
+                            QMessageBox::critical(this, "File Error", "An error occurred while opening/reading the image.");
+                            return;
+                        }
+                        auto* dialog = new SpriteImportDialog(pixmap, level, this);
+                        dialog->setAttribute(Qt::WA_DeleteOnClose);
+                        connect(dialog, &QDialog::accepted, [dialog, level]() {
+                            std::vector<QPixmap>* result = dialog->generatePixmapVector();
+                            if (result && !result->empty()) {
+                                auto* sprite = new Sprite(*result);
+                                sprite->setID(dialog->getSpriteID());
+                                level->addSprite(sprite);
+                            }
+                            delete result;
+                        });
+                        dialog->open();
+                    });
+#else
                 // Import new Sprite
                 Sprite* newSprite = AssetImport::importSprite(level);
 
@@ -154,7 +207,7 @@ void ToolBar::onAddItemSet()
                 {
                     level->addSprite(newSprite);
                 }
-
+#endif
                 break;
             }
             default:

@@ -1,0 +1,88 @@
+name: Deploy WebAssembly to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.56
+
+      - name: Cache Qt 6.8.2 WASM
+        id: cache-qt
+        uses: actions/cache@v4
+        with:
+          path: /opt/qt
+          key: ${{ runner.os }}-qt-6.8.2-wasm-v2
+
+      - name: Install Qt 6.8.2 via aqtinstall
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        run: |
+          pip install aqtinstall
+          aqt install-qt linux desktop 6.8.2 linux_gcc_64 --outputdir /opt/qt
+          aqt install-qt all_os wasm 6.8.2 wasm_singlethread -m qtmultimedia --outputdir /opt/qt
+
+      - name: Make Qt tools executable
+        run: |
+          chmod -R +x /opt/qt
+
+      - name: Configure CMake
+        run: |
+          /opt/qt/6.8.2/wasm_singlethread/bin/qt-cmake -B build-wasm -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DQT_HOST_PATH=/opt/qt/6.8.2/gcc_64
+
+      - name: Build WebAssembly Target
+        run: |
+          cmake --build build-wasm --parallel
+
+      - name: Prepare GitHub Pages Artifacts
+        run: |
+          mkdir -p dist
+          cp build-wasm/editor.html dist/index.html
+          cp build-wasm/editor.html dist/editor.html
+          cp build-wasm/editor.js dist/
+          cp build-wasm/editor.wasm dist/
+          cp build-wasm/qtloader.js dist/
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

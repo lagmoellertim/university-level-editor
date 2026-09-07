@@ -16,6 +16,7 @@
 #include "Sprite.hpp"
 #include "string"
 #include "vector"
+#include <QObject>
 #include <QPixmap>
 
 /**

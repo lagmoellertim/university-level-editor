@@ -1,15 +1,25 @@
 #include "MainWindow.hpp"
 #include "../Lib/AssetImport/AssetImport.hpp"
 #include "../Lib/HDF5/Exceptions.hpp"
+#include "Dialog/ImportSoundDialog.hpp"
 #include "Dialog/SoundEditDialog.hpp"
-#include <boost/algorithm/string/predicate.hpp>
+#include <QFile>
+#include <QFileInfo>
+#include <QScreen>
 
 
 MainWindow::MainWindow(LevelManager& LevelManager)
     : m_levelManager(LevelManager)
 {
     m_mainWindowUi.setupUi(this);
-    resize(QDesktopWidget().availableGeometry(this).size() * 0.7);
+    if (auto* scr = screen())
+    {
+        resize(scr->availableGeometry().size() * 0.7);
+    }
+    else
+    {
+        resize(1024, 768);
+    }
 
     m_toolBar = new ToolBar(m_levelManager, this);
     m_tileMapCanvas = new CanvasWidget(m_levelManager, this);
@@ -53,6 +63,32 @@ MainWindow::~MainWindow()
 
 void MainWindow::handleImportSound()
 {
+#ifdef __EMSCRIPTEN__
+    QFileDialog::getOpenFileContent(tr("WAV (*.wav)"),
+        [this](const QString &fileName, const QByteArray &fileContent) {
+            if (fileName.isEmpty() || fileContent.isEmpty() || !fileName.endsWith(".wav", Qt::CaseInsensitive)) {
+                return;
+            }
+            std::vector<std::string> soundList;
+            for (Sound* sound : m_levelManager.getSounds())
+            {
+                soundList.push_back(sound->getID());
+            }
+
+            auto* dialog = new ImportSoundDialog(soundList, this);
+            dialog->setAttribute(Qt::WA_DeleteOnClose);
+            QString baseName = QFileInfo(fileName).completeBaseName();
+            if (!baseName.isEmpty()) {
+                dialog->setSuggestedID(baseName);
+            }
+
+            connect(dialog, &QDialog::accepted, this, [this, dialog, fileContent]() {
+                Sound* sound = new Sound(dialog->getID(), fileContent);
+                m_levelManager.addSound(sound);
+            });
+            dialog->open();
+        });
+#else
     // Create List of all entries to parse in importSound Function
     std::vector<std::string> soundList;
     for (Sound* sound : m_levelManager.getSounds())
@@ -65,22 +101,45 @@ void MainWindow::handleImportSound()
     {
         m_levelManager.addSound(sound);
     }
+#endif
 }
 
 void MainWindow::handleManageSounds()
 {
-    SoundEditDialog dialog(m_levelManager);
-    dialog.setModal(true);
-    dialog.show();
-
-    if (dialog.exec())
+    SoundEditDialog dialog(m_levelManager, this);
+    if (dialog.exec() == QDialog::Accepted)
     {
         m_levelManager.setSounds(dialog.getSounds());
     }
 }
 
+
 void MainWindow::handleSave()
 {
+#ifdef __EMSCRIPTEN__
+    std::string tempFile = "/tmp/export.h5";
+    try
+    {
+        m_levelManager.save(tempFile);
+        QFile file(QString::fromStdString(tempFile));
+        if (file.open(QIODevice::ReadOnly))
+        {
+            QByteArray data = file.readAll();
+            file.close();
+            QFileDialog::saveFileContent(data, "level.h5");
+        }
+    }
+    catch (HDF5::FileException& e)
+    {
+        std::string message("An error has occurred while writing to the file.\n\nDescription:\n" + std::string(e.what()));
+        QMessageBox::critical(this, "File Error", QString::fromStdString(message));
+    }
+    catch (HDF5::DataException& e)
+    {
+        std::string message("An error related to the data parsing has occurred.\n\nDescription:\n" + std::string(e.what()));
+        QMessageBox::critical(this, "Data Error", QString::fromStdString(message));
+    }
+#else
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save File"),
                                                     "",
                                                     tr("Game-Resource-File (*.h5)"));
@@ -89,7 +148,7 @@ void MainWindow::handleSave()
     {
         std::string newFileName = fileName.toStdString();
 
-        if (!boost::algorithm::ends_with(newFileName, ".h5"))
+        if (!fileName.endsWith(".h5"))
         {
             newFileName += ".h5";
         }
@@ -109,10 +168,36 @@ void MainWindow::handleSave()
             QMessageBox::critical(this, "Data Error", QString::fromStdString(message));
         }
     }
+#endif
 }
 
 void MainWindow::handleLoadExtend()
 {
+#ifdef __EMSCRIPTEN__
+    QFileDialog::getOpenFileContent(tr("Game-Resource-File (*.h5);;All files (*)"),
+        [this](const QString &fileName, const QByteArray &fileContent) {
+            if (fileName.isEmpty() || fileContent.isEmpty()) {
+                return;
+            }
+            std::string tempPath = "/tmp/import_extend.h5";
+            QFile file(QString::fromStdString(tempPath));
+            if (file.open(QIODevice::WriteOnly)) {
+                file.write(fileContent);
+                file.close();
+                try {
+                    m_levelManager.loadExtend(tempPath);
+                }
+                catch (HDF5::FileException& e) {
+                    std::string message("An error has occurred while reading from the file.\n\nDescription:\n" + std::string(e.what()));
+                    QMessageBox::critical(this, "Extend File Error", QString::fromStdString(message));
+                }
+                catch (HDF5::DataException& e) {
+                    std::string message("An error related to the data parsing has occurred.\n\nDescription:\n" + std::string(e.what()));
+                    QMessageBox::critical(this, "Extend Data Error", QString::fromStdString(message));
+                }
+            }
+        });
+#else
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"),
                                                     "",
                                                     tr("Game-Resource-File (*.h5)"));
@@ -134,10 +219,36 @@ void MainWindow::handleLoadExtend()
             QMessageBox::critical(this, "Extend Data Error", QString::fromStdString(message));
         }
     }
+#endif
 }
 
 void MainWindow::handleLoad()
 {
+#ifdef __EMSCRIPTEN__
+    QFileDialog::getOpenFileContent(tr("Game-Resource-File (*.h5);;All files (*)"),
+        [this](const QString &fileName, const QByteArray &fileContent) {
+            if (fileName.isEmpty() || fileContent.isEmpty()) {
+                return;
+            }
+            std::string tempPath = "/tmp/import.h5";
+            QFile file(QString::fromStdString(tempPath));
+            if (file.open(QIODevice::WriteOnly)) {
+                file.write(fileContent);
+                file.close();
+                try {
+                    m_levelManager.load(tempPath);
+                }
+                catch (HDF5::FileException& e) {
+                    std::string message("An error has occurred while reading from the file.\n\nDescription:\n" + std::string(e.what()));
+                    QMessageBox::critical(this, "Load File Error", QString::fromStdString(message));
+                }
+                catch (HDF5::DataException& e) {
+                    std::string message("An error related to the data parsing has occurred.\n\nDescription:\n" + std::string(e.what()));
+                    QMessageBox::critical(this, "Load Data Error", QString::fromStdString(message));
+                }
+            }
+        });
+#else
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"),
                                                     "",
                                                     tr("Game-Resource-File (*.h5)"));
@@ -159,6 +270,7 @@ void MainWindow::handleLoad()
             QMessageBox::critical(this, "Load Data Error", QString::fromStdString(message));
         }
     }
+#endif
 }
 
 void MainWindow::updateWindowTitle()
