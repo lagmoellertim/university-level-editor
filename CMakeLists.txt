@@ -17,15 +17,6 @@ set(CMAKE_MODULE_PATH ${LEVEL_EDITOR_SOURCE_DIR}/cmake/ ${CMAKE_MODULE_PATH})
 file(GLOB_RECURSE EDITOR_SRC CONFIGURE_DEPENDS "src/*/*.h" "src/*/*.hpp" "src/*/*.cpp")
 set(ALL_SRC src/Main.cpp ${EDITOR_SRC})
 
-# HighFive options
-set(HIGHFIVE_EXAMPLES FALSE CACHE INTERNAL "")
-set(HIGHFIVE_UNIT_TESTS FALSE CACHE INTERNAL "")
-set(HIGHFIVE_USE_EIGEN FALSE)
-set(HIGHFIVE_USE_BOOST OFF CACHE BOOL "" FORCE)
-
-add_subdirectory(ext/HighFive)
-include_directories("ext/HighFive/include")
-
 if(EMSCRIPTEN)
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.hdf5-wasm/lib/libhdf5.a")
         message(STATUS "Downloading and extracting prebuilt HDF5 WebAssembly libraries...")
@@ -55,9 +46,36 @@ if(EMSCRIPTEN)
         "${CMAKE_CURRENT_SOURCE_DIR}/.hdf5-wasm/lib/libzlib-static.a"
     )
 
+    set(HDF5_FOUND TRUE)
+    set(HDF5_INCLUDE_DIRS "${HDF5_WASM_INCLUDE_DIR}")
+    set(HDF5_C_LIBRARIES "${HDF5_WASM_LIBS}")
+    set(HDF5_LIBRARIES "${HDF5_WASM_LIBS}")
     include_directories(${HDF5_WASM_INCLUDE_DIR})
+else()
+    # Native Qt6 build
+    if(APPLE AND NOT DEFINED CMAKE_PREFIX_PATH)
+        list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew/opt/qt" "/usr/local/opt/qt")
+    endif()
 
-    add_executable(editor ${ALL_SRC})
+    find_package(Qt6 COMPONENTS Core Gui Widgets Multimedia REQUIRED)
+
+    find_package(HDF5 REQUIRED COMPONENTS C CXX HL)
+    set(HDF5_C_LIBRARIES ${HDF5_LIBRARIES})
+    include_directories(${HDF5_INCLUDE_DIRS})
+endif()
+
+# HighFive options
+set(HIGHFIVE_EXAMPLES FALSE CACHE INTERNAL "")
+set(HIGHFIVE_UNIT_TESTS FALSE CACHE INTERNAL "")
+set(HIGHFIVE_USE_EIGEN FALSE)
+set(HIGHFIVE_USE_BOOST OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(ext/HighFive)
+include_directories("ext/HighFive/include")
+
+add_executable(editor ${ALL_SRC})
+
+if(EMSCRIPTEN)
     target_link_libraries(editor PRIVATE
         Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia
         ${HDF5_WASM_LIBS}
@@ -70,7 +88,6 @@ if(EMSCRIPTEN)
         "--pre-js=${CMAKE_CURRENT_SOURCE_DIR}/web/audio_patch.js"
     )
 
-
     if(COMMAND qt_finalize_executable)
         qt_finalize_executable(editor)
     endif()
@@ -80,17 +97,6 @@ if(EMSCRIPTEN)
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/web/editor.html"
         "${CMAKE_CURRENT_BINARY_DIR}/index.html" COPYONLY)
 else()
-    # Native Qt6 build
-    if(APPLE AND NOT DEFINED CMAKE_PREFIX_PATH)
-        list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew/opt/qt" "/usr/local/opt/qt")
-    endif()
-
-    find_package(Qt6 COMPONENTS Core Gui Widgets Multimedia REQUIRED)
-
-    find_package(HDF5 REQUIRED COMPONENTS C CXX HL)
-    include_directories(${HDF5_INCLUDE_DIRS})
-
-    add_executable(editor ${ALL_SRC})
     target_link_libraries(editor PRIVATE m ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES} Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia)
 endif()
 
