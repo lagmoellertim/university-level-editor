@@ -30,3 +30,9 @@ std::string ImportSoundDialog::getID() const
 {
     return m_UI.soundIDInput->text().toStdString();
 }
+
+void ImportSoundDialog::setSuggestedID(const QString& id)
+{
+    m_UI.soundIDInput->setText(id);
+    m_UI.soundIDInput->selectAll();
+}

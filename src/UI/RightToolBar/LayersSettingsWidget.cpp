@@ -1,7 +1,11 @@
 #include "LayersSettingsWidget.hpp"
 #include "../../Lib/AssetImport/AssetImport.hpp"
+#include "../Dialog/BackgroundImportDialog.hpp"
 #include "../View/EditBackgroundUI.hpp"
+#include <QFileDialog>
+#include <QMessageBox>
 #include <set>
+
 
 
 LayersSettingsWidget::LayersSettingsWidget(LevelManager& levelManager, QWidget* parent)
@@ -144,6 +148,39 @@ void LayersSettingsWidget::onAddBackground()
 
     if (level && context)
     {
+#ifdef __EMSCRIPTEN__
+        QFileDialog::getOpenFileContent(tr("Image files (*.png *.jpg *.bmp);;All files (*)"),
+            [level, context, this](const QString &fileName, const QByteArray &fileContent) {
+                if (fileName.isEmpty() || fileContent.isEmpty()) {
+                    return;
+                }
+                QPixmap pixmap;
+                if (!pixmap.loadFromData(fileContent)) {
+                    QMessageBox::critical(this, "File Error", "An error occurred while opening/reading the image.");
+                    return;
+                }
+                auto* dialog = new BackgroundImportDialog(level, this);
+                dialog->setAttribute(Qt::WA_DeleteOnClose);
+                connect(dialog, &QDialog::accepted, [dialog, level, context, pixmap, this]() {
+                    try {
+                        Background* bg = new Background(pixmap, dialog->getID());
+                        bg->setDepth(dialog->getParallaxInput());
+                        bg->setSpeed(dialog->getSpeedInput());
+
+                        LayerListItem* item = new LayerListItem(LayerType::BACKGROUND, QString::fromStdString(bg->getID()));
+                        m_layersView->backgroundsList->addItem(item);
+                        item->setCheckState(Qt::Checked);
+                        item->setFlags(item->flags() | Qt::ItemIsEditable);
+                        context->setBackgroundVisibility(bg, true);
+
+                        level->addBackground(bg);
+                    } catch (std::runtime_error& e) {
+                        QMessageBox::critical(this, "Error", "An error occurred while creating background.");
+                    }
+                });
+                dialog->open();
+            });
+#else
         Background* bg = AssetImport::importBackground(m_levelManager.getSelectedLevel());
 
         if (bg)
@@ -156,6 +193,7 @@ void LayersSettingsWidget::onAddBackground()
 
             level->addBackground(bg);
         }
+#endif
     }
 }
 

@@ -12,6 +12,7 @@
 
 #include "../../Lib/LevelManager/LevelManager.hpp"
 #include <QGraphicsScene>
+#include <QObject>
 #include <QGraphicsSceneMouseEvent>
 
 /**

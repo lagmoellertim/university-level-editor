@@ -13,6 +13,7 @@
 #define LEVEL_EDITOR_SPRITE_HPP
 
 
+#include <QObject>
 #include <QPixmap>
 #include <string>
 #include <vector>
