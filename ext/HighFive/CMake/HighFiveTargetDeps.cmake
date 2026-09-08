@@ -17,7 +17,7 @@ if(NOT TARGET libdeps)
     message(WARNING "Parallel HDF5 requested but libhdf5 doesnt support it")
   endif()
 
-  target_include_directories(libdeps SYSTEM INTERFACE ${HDF5_INCLUDE_DIRS})
+  target_include_directories(libdeps SYSTEM INTERFACE $<BUILD_INTERFACE:${HDF5_INCLUDE_DIRS}>)
   target_link_libraries(libdeps INTERFACE ${HDF5_C_LIBRARIES})
   target_compile_definitions(libdeps INTERFACE ${HDF5_DEFINITIONS})
 
